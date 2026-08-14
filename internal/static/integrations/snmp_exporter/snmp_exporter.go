@@ -107,6 +107,7 @@ func New(log *slog.Logger, c *Config) (integrations.Integration, error) {
 // LoadSNMPConfig loads the SNMP configuration from the given file. If the file is empty, it will
 // load the embedded configuration.
 func LoadSNMPConfig(snmpConfigFiles []string, customSnmpCfg *snmp_config.Config, strategy string) (*snmp_config.Config, error) {
+	customAuths := customSnmpCfg.Auths
 	var err error
 	if len(snmpConfigFiles) > 0 {
 		customSnmpCfg, err = snmp_config.LoadFile(snmpConfigFiles, false)
@@ -137,6 +138,9 @@ func LoadSNMPConfig(snmpConfigFiles []string, customSnmpCfg *snmp_config.Config,
 		}
 		if len(customSnmpCfg.Modules) > 0 {
 			maps.Copy(finalCfg.Modules, customSnmpCfg.Modules)
+		}
+		if len(customAuths) > 0 {
+			maps.Copy(finalCfg.Auths, customAuths)
 		}
 		return finalCfg, nil
 	default:

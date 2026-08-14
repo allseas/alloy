@@ -49,6 +49,7 @@ You can use the following arguments with `prometheus.exporter.snmp`:
 
 | Name                    | Type                 | Description                                                                                                                  | Default     | Required |
 |-------------------------|----------------------|------------------------------------------------------------------------------------------------------------------------------|-------------|----------|
+| `auths`                 | `secret`             | SNMP auths as inline string.                                                                                                 |             | no       |
 | `concurrency`           | `int`                | SNMP exporter concurrency.                                                                                                   | `1`         | no       |
 | `config_files`          | `list(string)`       | SNMP configuration files defining custom modules.                                                                            |             | no       |
 | `config_merge_strategy` | `string`             | A strategy defining how `config` or `config_file` contents merge with the embedded SNMP config. Can be `replace` or `merge`. | `"replace"` | no       |
@@ -73,6 +74,10 @@ example,
 Set `config_merge_strategy` to `merge` to add additional configuration to the
 embedded SNMP configuration. For example, if you need to add a few custom `auth`
 settings without regenerating the whole configuration.
+
+The `auths` argument is a way to provide the auths as an inline secret from 
+an external component. This must contain a dict where the keys are the auth 
+names, like the structure under `auths` in the snmp configuration.
 
 The `targets` argument is an alternative to the [target](#target) block. This is
 useful when SNMP targets are supplied by another component. The following labels
@@ -368,6 +373,21 @@ The YAML file in this example looks like this:
 [scrape]: ../prometheus.scrape/
 [file]: ../../local/local.file/
 [disc]: ../../discovery/discovery.file/
+
+The following example uses the [`local.file` component][file] to read auths 
+from a yaml file.
+
+```alloy
+local.file "auths" {
+  filename = "auths.yml"
+  is_secret = true
+}
+
+prometheus.exporter.snmp "example" {
+    auths        = local.file.auths.content
+    config_files = ["snmp_modules.yml"]
+}
+```
 
 <!-- START GENERATED COMPATIBLE COMPONENTS -->
 

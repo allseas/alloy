@@ -3,6 +3,7 @@ package snmp
 import (
 	"errors"
 	"fmt"
+	"maps"
 	"slices"
 	"time"
 
@@ -146,6 +147,7 @@ func (a *Arguments) SetToDefault() {
 }
 
 type Arguments struct {
+	Auths               alloytypes.Secret         `alloy:"auths,attr,optional"`
 	ConfigFile          string                    `alloy:"config_file,attr,optional"`
 	ConfigFiles         []string                  `alloy:"config_files,attr,optional"`
 	SnmpConcurrency     int                       `alloy:"concurrency,attr,optional"`
@@ -249,6 +251,15 @@ func (a *Arguments) UnmarshalAlloy(f func(any) error) error {
 	if err != nil {
 		return fmt.Errorf("invalid snmp_exporter config: %s", err)
 	}
+
+	var auths map[string]*snmp_config.Auth
+	err = yaml.UnmarshalStrict([]byte(a.Auths), &auths)
+	if err != nil {
+		// do not log the error, as it may contain the secret value
+		return fmt.Errorf("invalid auths config")
+	}
+
+	maps.Copy(a.ConfigStruct.Auths, auths)
 
 	return nil
 }
