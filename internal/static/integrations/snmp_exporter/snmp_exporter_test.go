@@ -3,6 +3,7 @@ package snmp_exporter
 import (
 	"testing"
 
+	config_util "github.com/prometheus/common/config"
 	snmp_config "github.com/prometheus/snmp_exporter/config"
 	"github.com/stretchr/testify/require"
 )
@@ -100,6 +101,27 @@ func TestLoadSNMPConfig(t *testing.T) {
 			expectedNumAuths:   1,
 		},
 		{
+			name: "providing an auth secret with 1 additional auth",
+			cfg: Config{
+				SnmpConfigMergeStrategy: "replace",
+				SnmpTargets:             []SNMPTarget{{Name: "test", Target: "localhost"}},
+				Auths:                   config_util.Secret("myauth:\n  community: supersecret"),
+			},
+			expectedNumModules: embeddedModulesCount,
+			expectedNumAuths:   embeddedAuthCount + 1,
+		},
+		{
+			name: "providing an auth secret with 1 additional auth and overriding the if_mib module",
+			cfg: Config{
+				SnmpConfig:              snmp_config.Config{Modules: map[string]*snmp_config.Module{"if_mib": {Walk: []string{"1.3.6.1.2.1.2"}}}},
+				SnmpConfigMergeStrategy: "merge",
+				SnmpTargets:             []SNMPTarget{{Name: "test", Target: "localhost"}},
+				Auths:                   config_util.Secret("myauth:\n  community: supersecret"),
+			},
+			expectedNumModules: embeddedModulesCount,
+			expectedNumAuths:   embeddedAuthCount + 1,
+		},
+		{
 			name: "merging embedded config and custom (empty config)",
 			cfg: Config{
 				SnmpConfig:              snmp_config.Config{},
@@ -111,11 +133,19 @@ func TestLoadSNMPConfig(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			cfg, err := LoadSNMPConfig(tt.cfg.SnmpConfigFiles, &tt.cfg.SnmpConfig, tt.cfg.SnmpConfigMergeStrategy)
+			cfg, err := LoadSNMPConfig(tt.cfg.SnmpConfigFiles, &tt.cfg.SnmpConfig,
+				tt.cfg.Auths, tt.cfg.SnmpConfigMergeStrategy)
 			require.NoError(t, err)
 
 			require.Equal(t, tt.expectedNumModules, len(cfg.Modules))
 			require.Equal(t, tt.expectedNumAuths, len(cfg.Auths))
 		})
 	}
+}
+
+func TestLoadSNMPConfigAuthFails(t *testing.T) {
+	cfg, err := LoadSNMPConfig([]string{}, &snmp_config.Config{}, "myauth:\n  unknown_key:", "replace")
+	require.Error(t, err)
+	require.Nil(t, cfg)
+	require.NotContains(t, err.Error(), "myauth", "secret content should not be logged")
 }

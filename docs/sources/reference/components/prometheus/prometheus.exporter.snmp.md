@@ -49,7 +49,7 @@ You can use the following arguments with `prometheus.exporter.snmp`:
 
 | Name                    | Type                 | Description                                                                                                                  | Default     | Required |
 |-------------------------|----------------------|------------------------------------------------------------------------------------------------------------------------------|-------------|----------|
-| `auths`                 | `secret`             | SNMP auths as inline string.                                                                                                 |             | no       |
+| `auths`                 | `secret`             | SNMP auths as inline string. Must be a YAML dictionary like in config.                                                       |             | no       |
 | `concurrency`           | `int`                | SNMP exporter concurrency.                                                                                                   | `1`         | no       |
 | `config_files`          | `list(string)`       | SNMP configuration files defining custom modules.                                                                            |             | no       |
 | `config_merge_strategy` | `string`             | A strategy defining how `config` or `config_file` contents merge with the embedded SNMP config. Can be `replace` or `merge`. | `"replace"` | no       |
@@ -389,18 +389,25 @@ prometheus.exporter.snmp "example" {
 }
 ```
 
+The contents of the auths.yaml file:
+
+```yaml
+# auths.yaml
+myauth:
+  community: supersecret
+```
+
 <!-- START GENERATED COMPATIBLE COMPONENTS -->
 
 ## Compatible components
 
-`prometheus.exporter.snmp` has exports that can be consumed by the following
-components:
+`prometheus.exporter.snmp` has exports that can be consumed by the following components:
 
 - Components that consume [Targets](../../../compatibility/#targets-consumers)
 
-{{< admonition type="note" >}} Connecting some components may not be sensible or
-components may require further configuration to make the connection work
-correctly. Refer to the linked documentation for more details. {{<
-/admonition >}}
+{{< admonition type="note" >}}
+Connecting some components may not be sensible or components may require further configuration to make the connection work correctly.
+Refer to the linked documentation for more details.
+{{< /admonition >}}
 
 <!-- END GENERATED COMPATIBLE COMPONENTS -->

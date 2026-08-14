@@ -7,6 +7,7 @@ import (
 	"github.com/grafana/alloy/internal/component"
 	"github.com/grafana/alloy/internal/component/discovery"
 	"github.com/grafana/alloy/syntax"
+	"github.com/grafana/alloy/syntax/alloytypes"
 
 	"github.com/prometheus/common/model"
 	"github.com/prometheus/snmp_exporter/config"
@@ -124,12 +125,20 @@ func TestConvertConfig(t *testing.T) {
 		ConfigFile: "modules.yml",
 		Targets:    TargetBlock{{Name: "network_switch_1", Target: "192.168.1.2", Module: "if_mib"}},
 		WalkParams: WalkParams{{Name: "public", Retries: 2}},
+		Auths: alloytypes.Secret(`
+myauth:
+  community: public
+`),
 	}
 
 	res := args.Convert()
 	require.Equal(t, []string{"modules.yml"}, res.SnmpConfigFiles)
 	require.Equal(t, 1, len(res.SnmpTargets))
 	require.Equal(t, "network_switch_1", res.SnmpTargets[0].Name)
+	require.Equal(t, `
+myauth:
+  community: public
+`, string(res.Auths))
 }
 
 func TestConfigLabels(t *testing.T) {

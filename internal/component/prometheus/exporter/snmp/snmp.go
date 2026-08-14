@@ -3,10 +3,10 @@ package snmp
 import (
 	"errors"
 	"fmt"
-	"maps"
 	"slices"
 	"time"
 
+	prometheus_config "github.com/prometheus/common/config"
 	snmp_config "github.com/prometheus/snmp_exporter/config"
 	"gopkg.in/yaml.v2"
 
@@ -252,15 +252,6 @@ func (a *Arguments) UnmarshalAlloy(f func(any) error) error {
 		return fmt.Errorf("invalid snmp_exporter config: %s", err)
 	}
 
-	var auths map[string]*snmp_config.Auth
-	err = yaml.UnmarshalStrict([]byte(a.Auths), &auths)
-	if err != nil {
-		// do not log the error, as it may contain the secret value
-		return fmt.Errorf("invalid auths config")
-	}
-
-	maps.Copy(a.ConfigStruct.Auths, auths)
-
 	return nil
 }
 
@@ -285,6 +276,7 @@ func (a *Arguments) Convert() *snmp_exporter.Config {
 		SnmpTargets:             targets,
 		WalkParams:              a.WalkParams.Convert(),
 		SnmpConfig:              a.ConfigStruct,
+		Auths:                   prometheus_config.Secret(a.Auths),
 	}
 }
 

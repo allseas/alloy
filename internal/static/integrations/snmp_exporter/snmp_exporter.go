@@ -13,8 +13,10 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
+	config_util "github.com/prometheus/common/config"
 	"github.com/prometheus/snmp_exporter/collector"
 	snmp_config "github.com/prometheus/snmp_exporter/config"
+	"gopkg.in/yaml.v2"
 
 	"github.com/grafana/alloy/internal/static/integrations"
 	"github.com/grafana/alloy/internal/static/integrations/config"
@@ -49,6 +51,7 @@ type Config struct {
 	SnmpConfigMergeStrategy string                            `yaml:"config_merge_strategy,omitempty"`
 	SnmpConcurrency         int                               `yaml:"concurrency,omitempty"`
 	SnmpTargets             []SNMPTarget                      `yaml:"snmp_targets"`
+	Auths                   config_util.Secret                `yaml:"auths,omitempty"`
 	SnmpConfig              snmp_config.Config                `yaml:"snmp_config,omitempty"`
 }
 
@@ -80,7 +83,7 @@ func init() {
 
 // New creates a new snmp_exporter integration
 func New(log *slog.Logger, c *Config) (integrations.Integration, error) {
-	snmpCfg, err := LoadSNMPConfig(c.SnmpConfigFiles, &c.SnmpConfig, c.SnmpConfigMergeStrategy)
+	snmpCfg, err := LoadSNMPConfig(c.SnmpConfigFiles, &c.SnmpConfig, c.Auths, c.SnmpConfigMergeStrategy)
 	if err != nil {
 		return nil, err
 	}
@@ -106,8 +109,7 @@ func New(log *slog.Logger, c *Config) (integrations.Integration, error) {
 
 // LoadSNMPConfig loads the SNMP configuration from the given file. If the file is empty, it will
 // load the embedded configuration.
-func LoadSNMPConfig(snmpConfigFiles []string, customSnmpCfg *snmp_config.Config, strategy string) (*snmp_config.Config, error) {
-	customAuths := customSnmpCfg.Auths
+func LoadSNMPConfig(snmpConfigFiles []string, customSnmpCfg *snmp_config.Config, auths config_util.Secret, strategy string) (*snmp_config.Config, error) {
 	var err error
 	if len(snmpConfigFiles) > 0 {
 		customSnmpCfg, err = snmp_config.LoadFile(snmpConfigFiles, false)
@@ -117,35 +119,47 @@ func LoadSNMPConfig(snmpConfigFiles []string, customSnmpCfg *snmp_config.Config,
 		}
 	}
 
+	finalSnmpCfg := customSnmpCfg
 	switch strategy {
 	case "replace":
 		if len(customSnmpCfg.Modules) == 0 && len(customSnmpCfg.Auths) == 0 { // If the user didn't specify a config, load the embedded config.
-			customSnmpCfg, err = snmp_common.LoadEmbeddedConfig()
+			finalSnmpCfg, err = snmp_common.LoadEmbeddedConfig()
 			if err != nil {
 				return nil, fmt.Errorf("failed to load embedded snmp config: %w", err)
 			}
 		}
-		return customSnmpCfg, nil
+
 	case "merge":
-		var finalCfg *snmp_config.Config
-		finalCfg, err = snmp_common.LoadEmbeddedConfig()
+		finalSnmpCfg, err = snmp_common.LoadEmbeddedConfig()
 		if err != nil {
 			return nil, fmt.Errorf("failed to load embedded snmp config: %w", err)
 		}
 
 		if len(customSnmpCfg.Auths) > 0 {
-			maps.Copy(finalCfg.Auths, customSnmpCfg.Auths)
+			maps.Copy(finalSnmpCfg.Auths, customSnmpCfg.Auths)
 		}
 		if len(customSnmpCfg.Modules) > 0 {
-			maps.Copy(finalCfg.Modules, customSnmpCfg.Modules)
+			maps.Copy(finalSnmpCfg.Modules, customSnmpCfg.Modules)
 		}
-		if len(customAuths) > 0 {
-			maps.Copy(finalCfg.Auths, customAuths)
-		}
-		return finalCfg, nil
+
 	default:
 		return nil, fmt.Errorf("unsupported snmp config merge strategy is used: '%s'", strategy)
 	}
+
+	authBytes := []byte(auths)
+	if len(authBytes) > 0 {
+		var customAuths map[string]*snmp_config.Auth
+		err = yaml.UnmarshalStrict(authBytes, &customAuths)
+		if err != nil {
+			// do not log the error because that might leak the secret value
+			return nil, fmt.Errorf("failed to unmarshal `auths`. " +
+				"root keys should be auth names and follow the prometheus snmp exporter auth config format")
+		}
+
+		maps.Copy(finalSnmpCfg.Auths, customAuths)
+	}
+
+	return finalSnmpCfg, nil
 }
 
 func NewSNMPMetrics(reg prometheus.Registerer) collector.Metrics {
